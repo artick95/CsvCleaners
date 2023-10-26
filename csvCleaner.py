@@ -3,13 +3,16 @@ import re
 
 def clean_emails_with_name_prioritization():
     # Load the popular names CSV
-    names_df = pd.read_csv("/Users/artick/Documents/Scripts/CsvCleaners/Popular Names by Country - USA Names.csvG")
+    names_df = pd.read_csv("/Users/artick/Documents/Scripts/CsvCleaners/Popular Names by Country - USA Names.csv")
     popular_names = names_df["Male Name"].str.lower().tolist() + names_df["Female Name"].str.lower().tolist()
     
     # Load CSV file with dtype=str
     youtubers_df = pd.read_csv("/Users/artick/Documents/Scripts/CsvCleaners/youtubersTest.csv", dtype=str)
     youtubers_df = youtubers_df.filter(regex='^(?!Unnamed)')
     youtubers_df['email'] = youtubers_df['email'].astype(str)
+    
+    # Remove hyphens from the alias portion of the email
+    youtubers_df['email'] = youtubers_df['email'].apply(lambda x: x.split('@')[0].replace('-', '') + '@' + x.split('@')[1] if '@' in x else x)
     
     email_pattern = r"^[a-zA-Z0-9_.+-]+@[a-zA-Z0-9-]+\.[a-zA-Z0-9-.]+$"
     def is_valid_email(email):
@@ -44,10 +47,18 @@ def clean_emails_with_name_prioritization():
         ))
         return emails[0]
     
+    # Additional cleaning patterns
     patterns_to_remove = [
         "domain.com", "sentry.io", "wixpress", "ingest", "example.com", ".edu",
         r"\.(jpg|jpeg|png|gif|bmp|webp|svg|mp4|avi|flv|mkv|mov)$", 
-        r"@\d+\.\d+x"
+        r"@\d+\.\d+x",
+        r"\.js$", # Emails ending with .js
+        r"sentry", # Emails containing the word sentry
+        r"^(.{30,}@)", # Long alphanumeric strings before @
+        r"^\.@", # Emails starting with .@
+        r"google", # Emails containing the word google
+        r"calendar", # Emails containing the word calendar
+        r"amazon" # Emails containing the word amazon
     ]
     starting_patterns_to_remove = ["privacy", "terms"]
     def should_remove_email(email):
@@ -56,6 +67,10 @@ def clean_emails_with_name_prioritization():
         if any(re.search(pattern, email, re.IGNORECASE) for pattern in patterns_to_remove):
             return True
         if any(email.lower().startswith(pattern) for pattern in starting_patterns_to_remove):
+            return True
+        # Exclude emails with more than two . after the @
+        domain_part = email.split("@")[1] if "@" in email else ""
+        if domain_part.count(".") > 2:
             return True
         return False
     
